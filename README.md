@@ -4,7 +4,7 @@ Control your music with volume keys when your screen is off.
 
 ## What it does
 
-I got tired of having to pull out my phone and unlock it just to skip a song, so I built this. KeyWave lets you control music playback using your volume keys even when the screen is off.
+KeyWave solves the inconvenience of unlocking your phone to control music playback. It allows you to use your volume keys to manage playback even when the screen is off.
 
 Long press volume up to skip to the next track, long press volume down for previous track, or long press both keys together to play/pause. Regular short presses still work normally for volume control.
 
