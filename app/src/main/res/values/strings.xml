@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">KeyWave</string>
+    <string name="accessibility_service_description">KeyWave allows you to control music playback using volume buttons when your screen is off. Long-press volume up for next track, volume down for previous track, or both for play/pause.</string>
+    <string name="service_enabled">Service Enabled</string>
+    <string name="service_disabled">Service Disabled</string>
+    <string name="enable_service">Enable Service</string>
+    <string name="service_description">Control your music playback using volume buttons:\n• Long-press Volume Up = Next Track\n• Long-press Volume Down = Previous Track\n• Long-press Both = Play/Pause</string>
+    <string name="accessibility_required">Accessibility Service Required</string>
+    <string name="accessibility_explanation">KeyWave needs accessibility service permissions to detect volume button presses.</string>
+    <string name="open_accessibility_settings">Open Accessibility Settings</string>
+</resources>
