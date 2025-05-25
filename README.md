@@ -60,8 +60,8 @@ To get KeyWave up and running on your device:
 7.  **Enjoy!** Turn off your screen and try controlling your music using the volume keys.
 
 ## 📸 Screenshots
-![Screenshot1](screenshots/screenshot1.png)
-![Screenshot2](screenshots/screenshot.png)
+![Screenshot1](Screenshots/Screenshot1.png)
+![Screenshot2](Screenshots/Screenshot.png)
 
 ## 💡 Contribution
 
