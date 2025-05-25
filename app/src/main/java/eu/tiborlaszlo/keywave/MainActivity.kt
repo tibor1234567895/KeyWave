@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Ensure window is properly attached
-        window?.decorView?.requestFitSystemWindows()
+//        window?.decorView?.requestFitSystemWindows()
     }
     
     override fun onPause() {
