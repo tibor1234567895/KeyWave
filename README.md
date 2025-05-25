@@ -61,7 +61,7 @@ To get KeyWave up and running on your device:
 
 ## 📸 Screenshots
 ![Screenshot1](Screenshots/Screenshot1.png)
-![Screenshot2](Screenshots/Screenshot.png)
+![Screenshot2](Screenshots/Screenshot2.png)
 
 ## 💡 Contribution
 
