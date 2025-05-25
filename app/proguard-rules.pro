@@ -5,17 +5,31 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep source file names and line numbers for better crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep accessibility service
+-keep class eu.tiborlaszlo.keywave.service.KeyWaveAccessibilityService {
+    public void onCreate();
+    public void onServiceConnected();
+    public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent);
+    public void onInterrupt();
+    public boolean onKeyEvent(android.view.KeyEvent);
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep SettingsManager
+-keep class eu.tiborlaszlo.keywave.service.SettingsManager { *; }
+
+# Keep AndroidManifest accessibility service configuration
+-keepattributes ServiceInfo
+
+# Keep MediaSession related classes
+-keep class android.support.v4.media.** { *; }
+-keep class android.media.** { *; }
+
+# Keep DataStore preferences
+-keep class androidx.datastore.** { *; }
+
+# Keep Compose related classes
+-keep class androidx.compose.** { *; }
