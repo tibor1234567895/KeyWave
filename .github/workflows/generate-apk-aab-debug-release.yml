@@ -1,23 +1,27 @@
-name: Generated APK AAB (Upload - Create Artifact To Github Action)
+name: Build APK, Upload Artifact, and Create GitHub Release (APK Only)
 
 env:
   # The name of the main module repository
   main_project_module: app
 
-  # The name of the Play Store
+  # The name of the Play Store (used in artifact naming)
   playstore_name: Frogobox ID
 
 on:
-
   push:
     branches:
       - 'main/**'
+    tags:
+      - 'v*.*.*' # Example: v1.0, v1.2.3 - adjust pattern as needed
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+permissions:
+  contents: write # Grant GITHUB_TOKEN permissions to create releases
+
 jobs:
-  build:
+  build_and_release_apk:
 
     runs-on: ubuntu-latest
 
@@ -35,52 +39,70 @@ jobs:
       - name: Set Up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu' # See 'Supported distributions' for available options
+          distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
 
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
-      # Run Tests Build
-      - name: Run gradle tests
-        run: ./gradlew test
+      # Optional: Run Tests Build
+      # - name: Run gradle tests
+      #   run: ./gradlew test
 
-      # Run Build Project
-      - name: Build gradle project
-        run: ./gradlew build
-
-      # Create APK Debug
+      # Create APK Debug (Still useful as a workflow artifact)
       - name: Build apk debug project (APK) - ${{ env.main_project_module }} module
-        run: ./gradlew assembleDebug
+        run: ./gradlew :${{ env.main_project_module }}:assembleDebug
 
-      # Create APK Release
+      # Create APK Release (This will be unsigned if no signing is configured)
       - name: Build apk release project (APK) - ${{ env.main_project_module }} module
-        run: ./gradlew assemble
+        run: ./gradlew :${{ env.main_project_module }}:assembleRelease
 
-      # Create Bundle AAB Release
-      # Noted for main module build [main_project_module]:bundleRelease
-      - name: Build app bundle release (AAB) - ${{ env.main_project_module }} module
-        run: ./gradlew ${{ env.main_project_module }}:bundleRelease
-
-      # Upload Artifact Build
-      # Noted For Output [main_project_module]/build/outputs/apk/debug/
+      # --- Upload Artifacts to Workflow Run ---
       - name: Upload APK Debug - ${{ env.repository_name }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.date_today }} - ${{ env.playstore_name }} - ${{ env.repository_name }} - APK(s) debug generated
-          path: ${{ env.main_project_module }}/build/outputs/apk/debug/
+          name: ${{ env.date_today }} - ${{ env.playstore_name }} - ${{ env.repository_name }} - APK Debug
+          path: ${{ env.main_project_module }}/build/outputs/apk/debug/*.apk # Be more specific with *.apk
 
-      # Noted For Output [main_project_module]/build/outputs/apk/release/
       - name: Upload APK Release - ${{ env.repository_name }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.date_today }} - ${{ env.playstore_name }} - ${{ env.repository_name }} - APK(s) release generated
-          path: ${{ env.main_project_module }}/build/outputs/apk/release/
+          name: ${{ env.date_today }} - ${{ env.playstore_name }} - ${{ env.repository_name }} - APK Release (Unsigned)
+          path: ${{ env.main_project_module }}/build/outputs/apk/release/*.apk # Be more specific with *.apk
 
-      # Noted For Output [main_project_module]/build/outputs/bundle/release/
-      - name: Upload AAB (App Bundle) Release - ${{ env.repository_name }}
-        uses: actions/upload-artifact@v4
+      # --- Create GitHub Release (Only on Tag Push, with Release APK) ---
+      - name: Find Release APK for GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') # Only run this step if triggered by a tag
+        id: find_release_apk
+        run: |
+          # Try to find specific release APKs first, then any APK in the release folder
+          APK_FILE_PATH=$(find ${{ env.main_project_module }}/build/outputs/apk/release -name "*-release.apk" -o -name "*-release-unsigned.apk" -o -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE_PATH" ]; then
+            echo "Release APK file not found in ${{ env.main_project_module }}/build/outputs/apk/release/"
+            ls -R ${{ env.main_project_module }}/build/outputs/apk/release/ # For debugging
+            exit 1
+          fi
+          echo "Found Release APK: $APK_FILE_PATH"
+          echo "apk_path=$APK_FILE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release with APK
+        if: startsWith(github.ref, 'refs/tags/') # Only run this step if triggered by a tag
+        id: create_gh_release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ env.date_today }} - ${{ env.playstore_name }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
-          path: ${{ env.main_project_module }}/build/outputs/bundle/release/
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }} (APK)
+          body: |
+            Automated release for ${{ github.ref_name }}.
+
+            **This build is an unsigned APK.**
+
+            - Release APK is attached directly to this release.
+            - Debug APK and Release APK are also available as workflow artifacts from the Actions run.
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.find_release_apk.outputs.apk_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
