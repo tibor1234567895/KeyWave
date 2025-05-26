@@ -348,7 +348,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                         Log.d(TAG, "Simultaneous threshold met. Triggering play/pause.")
                         hasTriggeredAction =
                             true // Mark that this specific action is being triggered.
-                        togglePlayPause() // This action includes haptic feedback and resets hasTriggeredAction in its finally.
+                        togglePlayPause() // This action includes haptic feedback.
                         break // Exit loop as action is triggered.
                     }
                     delay(10) // Re-check shortly.
@@ -425,14 +425,11 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error dispatching MEDIA_PLAY_PAUSE", e)
                 showError("Failed to toggle play/pause")
-            } finally {
-                // IMPORTANT: After a play/pause attempt (success or failure),
-                // reset hasTriggeredAction. This is because play/pause is a discrete action
-                // triggered by both keys. Once attempted, that "simultaneous intent" is consumed.
-                // This allows individual key releases to behave normally or other actions if keys are re-pressed.
-                Log.d(TAG, "Resetting hasTriggeredAction in togglePlayPause finally block.")
-                hasTriggeredAction = false
             }
+            // CRITICAL FIX: Removed 'finally { hasTriggeredAction = false }' block from here.
+            // The 'hasTriggeredAction' flag is now correctly reset only when both volume keys
+            // are released, as handled in the ACTION_UP sections of
+            // handleVolumeUpKey and handleVolumeDownKey.
         }
     }
 
