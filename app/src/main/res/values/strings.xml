@@ -8,4 +8,8 @@
     <string name="accessibility_required">Accessibility Service Required</string>
     <string name="accessibility_explanation">KeyWave needs accessibility service permissions to detect volume button presses.</string>
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
+
+    <string name="accessibility_required_short">Accessibility Needed</string>
+    <string name="service_status_active">Active</string>
+    <string name="service_status_inactive">Inactive</string>
 </resources>

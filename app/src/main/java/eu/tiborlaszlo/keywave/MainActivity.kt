@@ -14,8 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import eu.tiborlaszlo.keywave.R
+import androidx.lifecycle.repeatOnLifecycle
 import eu.tiborlaszlo.keywave.service.SettingsManager
 import eu.tiborlaszlo.keywave.ui.settings.SettingsScreen
 import eu.tiborlaszlo.keywave.ui.theme.KeyWaveTheme
@@ -25,18 +26,21 @@ import kotlinx.coroutines.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Set default exception handler for coroutines
-        val handler = Thread.getDefaultUncaughtExceptionHandler()
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            android.util.Log.e("KeyWave", "Uncaught exception", throwable)
-            handler?.uncaughtException(thread, throwable)
+            android.util.Log.e(
+                "KeyWaveApp",
+                "Uncaught exception in thread: ${thread.name}",
+                throwable
+            )
+            defaultHandler?.uncaughtException(thread, throwable)
         }
-        
+
         enableEdgeToEdge()
         setContent {
             KeyWaveTheme {
-                // Use Surface instead of Scaffold for better window attachment
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -48,18 +52,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    
-    override fun onResume() {
-        super.onResume()
-        // Ensure window is properly attached
-//        window?.decorView?.requestFitSystemWindows()
-    }
-    
-    override fun onPause() {
-        super.onPause()
-        // Clean up any pending operations
-        window?.decorView?.cancelPendingInputEvents()
-    }
 }
 
 @Composable
@@ -67,21 +59,42 @@ fun MainScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
     val isAppEnabled by settingsManager.isAppEnabled.collectAsState(initial = true)
-    val scope = rememberCoroutineScope()
-    
-    var isAccessibilityEnabled by remember { 
-        mutableStateOf(AccessibilityUtils.isAccessibilityServiceEnabled(context)) 
+    val scope = rememberCoroutineScope() // For launching coroutines from UI events
+
+    // State for accessibility service status
+    var isAccessibilityEnabled by remember {
+        mutableStateOf(AccessibilityUtils.isAccessibilityServiceEnabled(context))
     }
-    
-    // Monitor accessibility service state changes
-    // Periodically check accessibility service state
-    LaunchedEffect(Unit) {
-        while (true) {
+
+    // Activity reference to access lifecycle
+    val activity = LocalContext.current as? ComponentActivity
+
+    // LaunchedEffect to update accessibility status when the activity resumes
+    // and periodically while it's resumed.
+    LaunchedEffect(key1 = Unit, key2 = activity) {
+        activity?.lifecycleScope?.launch {
+            activity.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                // This block will now execute when the activity is RESUMED
+                // and cancel when it's PAUSED.
+                while (isActive) { // isActive is from the coroutine scope
+                    val currentStatus = AccessibilityUtils.isAccessibilityServiceEnabled(context)
+                    if (isAccessibilityEnabled != currentStatus) {
+                        isAccessibilityEnabled = currentStatus
+                        android.util.Log.d(
+                            "MainScreen",
+                            "Accessibility service status updated: $currentStatus"
+                        )
+                    }
+                    delay(1000) // Check every 1 second while resumed
+                }
+            }
+        }
+        // Initial check in case repeatOnLifecycle doesn't run immediately or if not in RESUMED state yet
+        if (!isAccessibilityEnabled) {
             isAccessibilityEnabled = AccessibilityUtils.isAccessibilityServiceEnabled(context)
-            kotlinx.coroutines.delay(500) // Check every 500ms
         }
     }
-    
+
     Column(
         modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -108,9 +121,9 @@ fun MainScreen(modifier: Modifier = Modifier) {
                         )
                         Text(
                             text = when {
-                                !isAccessibilityEnabled -> "Accessibility Service Required"
-                                isAppEnabled -> "Active"
-                                else -> "Inactive"
+                                !isAccessibilityEnabled -> stringResource(R.string.accessibility_required_short) // "Accessibility Needed"
+                                isAppEnabled -> stringResource(R.string.service_status_active) // "Active"
+                                else -> stringResource(R.string.service_status_inactive) // "Inactive"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = when {
@@ -121,29 +134,38 @@ fun MainScreen(modifier: Modifier = Modifier) {
                         )
                     }
                     Switch(
-                        enabled = true,
                         checked = isAppEnabled && isAccessibilityEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled && !isAccessibilityEnabled) {
-                                // If trying to enable but accessibility service is not enabled
+                        onCheckedChange = { newCheckedState ->
+                            if (newCheckedState && !isAccessibilityEnabled) {
+                                // Trying to enable, but accessibility is off. Guide user.
                                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                                 context.startActivity(intent)
-                            } else {
-                                // Normal toggle when accessibility service is enabled
+                                // The switch will reflect actual state once accessibility is enabled and app is toggled on.
+                                // We don't update isAppEnabled in settingsManager here,
+                                // as the primary issue is accessibility.
+                            } else if (isAccessibilityEnabled) {
+                                // Accessibility is enabled, so toggle app's own enabled state.
                                 scope.launch {
-                                    settingsManager.setAppEnabled(enabled)
+                                    settingsManager.setAppEnabled(newCheckedState)
                                 }
                             }
-                        }
+                            // If trying to disable while accessibility is off, it should just reflect visually.
+                            // The actual app state (isAppEnabled) is what matters for the service.
+                        },
+                        // The switch is enabled for interaction if accessibility is on,
+                        // OR if the user is trying to turn it ON (which would guide them to settings).
+                        // If accessibility is OFF and the switch is also OFF, it means the app is "off"
+                        // and trying to turn it on should take them to settings.
+                        enabled = true // Always allow interaction; logic inside onCheckedChange handles guidance.
                     )
                 }
-                
+
                 Text(
                     text = stringResource(R.string.service_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 if (!isAccessibilityEnabled) {
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -182,9 +204,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
-        
+
         // Settings section
-        SettingsScreen()
+        SettingsScreen() // Assuming SettingsScreen has its own ViewModel and state handling
     }
 }
-
