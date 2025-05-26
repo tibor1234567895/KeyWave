@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
-    android:accessibilityEventTypes="typeViewClicked"
-    android:accessibilityFlags="flagRequestFilterKeyEvents"
-    android:canRequestFilterKeyEvents="true"
+    android:accessibilityEventTypes="typeNotificationStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagRequestFilterKeyEvents"
     android:canRetrieveWindowContent="false"
-    android:notificationTimeout="100" />
+    android:canRequestFilterKeyEvents="true"
+    android:notificationTimeout="0"
+    android:packageNames="eu.tiborlaszlo.keywave"
+    android:settingsActivity="eu.tiborlaszlo.keywave.MainActivity" />

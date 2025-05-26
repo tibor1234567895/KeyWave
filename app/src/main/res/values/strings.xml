@@ -12,4 +12,12 @@
     <string name="accessibility_required_short">Accessibility Needed</string>
     <string name="service_status_active">Active</string>
     <string name="service_status_inactive">Inactive</string>
+
+    <string name="settings_debug_monitoring_title">Enable Debug Monitoring</string>
+    <string name="settings_debug_monitoring_description">Enables verbose logging for troubleshooting. May impact performance slightly.</string>
+
+    <string name="keywave_service_notification_channel_name">KeyWave Service Status</string>
+    <string name="keywave_service_notification_channel_description">Notification to keep KeyWave service active</string>
+    <string name="keywave_service_notification_title">KeyWave Active</string>
+    <string name="keywave_service_notification_text">Controlling media via volume keys.</string>
 </resources>
