@@ -36,9 +36,6 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     private var isAppCurrentlyEnabled = true
 
     // Variables to track key press states and timings.
-    // Use Delegates.notNull for non-nullable types that are initialized in onCreate/onServiceConnected.
-    // However, for times, initializing to 0L is safer to prevent UninitializedPropertyAccessException
-    // if accessed before ACTION_DOWN.
     private var volumeUpPressTime: Long = 0L
     private var volumeDownPressTime: Long = 0L
     private var isVolumeUpPressed = false
@@ -56,18 +53,16 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             settingsManager = SettingsManager(this)
 
             // Launch a coroutine to observe the app enabled state from DataStore.
-            // This avoids blocking calls in onKeyEvent.
             serviceScope.launch {
                 settingsManager.isAppEnabled
-                    .stateIn( // Convert Flow to StateFlow for efficient observation.
+                    .stateIn(
                         scope = serviceScope,
-                        started = SharingStarted.WhileSubscribed(5000L), // Keep collecting for 5s after last observer.
-                        initialValue = true // Assume enabled initially until DataStore loads.
+                        started = SharingStarted.WhileSubscribed(5000L),
+                        initialValue = true
                     )
                     .collect { enabled ->
                         isAppCurrentlyEnabled = enabled
                         Log.d(TAG, "App enabled state updated to: $isAppCurrentlyEnabled")
-                        // If the app was just disabled, reset any active key states.
                         if (!enabled && (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction)) {
                             Log.d(TAG, "App disabled, resetting states.")
                             resetAllStates()
@@ -77,14 +72,13 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             Log.i(TAG, "KeyWave Accessibility Service created and observing settings.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize accessibility service in onCreate", e)
-            disableSelf() // Disable service if initialization fails.
+            disableSelf()
         }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
-            // Double-check initialization, though onCreate should handle it.
             if (!::audioManager.isInitialized || !::powerManager.isInitialized ||
                 !::vibrator.isInitialized || !::settingsManager.isInitialized
             ) {
@@ -92,7 +86,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 disableSelf()
                 return
             }
-            resetAllStates() // Ensure a clean state when the service (re)connects.
+            resetAllStates()
             Log.i(TAG, "KeyWave Accessibility Service connected.")
         } catch (e: Exception) {
             Log.e(TAG, "Error in onServiceConnected", e)
@@ -102,7 +96,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         try {
-            serviceScope.cancel() // Cancel all coroutines started by this service.
+            serviceScope.cancel()
             Log.i(TAG, "KeyWave Accessibility Service destroyed and scope cancelled.")
         } finally {
             super.onDestroy()
@@ -110,62 +104,54 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // This service focuses on key events, so no action needed here.
+        // Not used for key event filtering
     }
 
     override fun onInterrupt() {
         Log.w(TAG, "Service interrupted. Resetting states.")
-        // Interruption might leave the service in an inconsistent state.
         resetAllStates()
     }
 
     override fun onKeyEvent(event: KeyEvent?): Boolean {
-        if (event == null) return false // Ignore null events.
+        if (event == null) return false
 
         try {
-            // Only process key down and key up actions.
             if (event.action != KeyEvent.ACTION_UP && event.action != KeyEvent.ACTION_DOWN) {
                 return false
             }
 
-            // Ensure all required components are initialized.
             if (!::audioManager.isInitialized || !::powerManager.isInitialized ||
                 !::vibrator.isInitialized || !::settingsManager.isInitialized
             ) {
                 Log.e(TAG, "Skipping key event: Required services not initialized.")
-                return false // Don't handle if service isn't ready.
+                return false
             }
 
-            // Check the cached app enabled state.
             if (!isAppCurrentlyEnabled) {
-                // If app is disabled, ensure states are clean and don't process further.
                 if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
                     resetAllStates()
                 }
                 return false
             }
 
-            // Only handle key events if the screen is off (device is not interactive).
             if (powerManager.isInteractive) {
-                // If screen is on, reset any lingering states from when screen was off.
                 if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
                     Log.d(TAG, "Screen is on, resetting internal key states.")
                     resetAllStates()
                 }
-                return false // Let system handle volume keys normally.
+                return false
             }
 
-            // Process specific volume key events.
             return when (event.keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> handleVolumeUpKey(event)
                 KeyEvent.KEYCODE_VOLUME_DOWN -> handleVolumeDownKey(event)
-                else -> false // Not a volume key, let system handle it.
+                else -> false
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "Critical error processing key event", e)
-            resetAllStates() // Reset to a known safe state on any unexpected error.
-            return true // Consume event even on error to prevent unintended system actions.
+            resetAllStates()
+            return true // Consume event even on error
         }
     }
 
@@ -173,40 +159,37 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         try {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
-                    // If volume down is already pressed, this is part of a simultaneous press.
-                    if (isVolumeDownPressed) {
-                        isVolumeUpPressed = true // Mark volume up as pressed.
+                    if (isVolumeDownPressed) { // Part of a simultaneous press
+                        isVolumeUpPressed = true
                         volumeUpPressTime = SystemClock.uptimeMillis()
                         Log.d(TAG, "Volume Up pressed (simultaneous press ongoing).")
-                        // The checkSimultaneousLongPress will be triggered by the other key's coroutine.
-                        return true // Consume event, prevent system volume change.
+                        // checkSimultaneousLongPress will be initiated by the other key's coroutine or this one if it started first
+                        return true
                     }
 
-                    // If not already pressed and no action has been triggered yet.
                     if (!isVolumeUpPressed && !hasTriggeredAction) {
                         volumeUpPressTime = SystemClock.uptimeMillis()
                         isVolumeUpPressed = true
                         Log.d(TAG, "Volume Up pressed (monitoring for long press).")
 
-                        // Launch coroutine to monitor for long press or simultaneous press.
                         serviceScope.launch {
                             try {
                                 val nextTrackThreshold =
                                     settingsManager.getNextTrackThreshold.first()
-                                while (isVolumeUpPressed && !hasTriggeredAction) {
+                                while (isVolumeUpPressed && !hasTriggeredAction) { // Loop while key is held and no action triggered
                                     val pressDuration = SystemClock.uptimeMillis() - volumeUpPressTime
 
-                                    if (isVolumeDownPressed) { // Check if other key was pressed.
+                                    if (isVolumeDownPressed) { // Other key pressed during hold
                                         checkSimultaneousLongPress()
-                                        break // Simultaneous check will handle or this loop ends.
+                                        break // Exit this monitor, simultaneous will take over or this action is done
                                     }
 
                                     if (pressDuration >= nextTrackThreshold && !hasTriggeredAction) {
                                         hasTriggeredAction = true
-                                        skipToNextTrack() // This action includes haptic feedback.
+                                        skipToNextTrack()
                                         break
                                     }
-                                    delay(10) // Check frequently.
+                                    delay(10) // Check frequently
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error in volume up long press monitoring", e)
@@ -217,17 +200,20 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 KeyEvent.ACTION_UP -> {
                     if (isVolumeUpPressed) {
                         Log.d(TAG, "Volume Up released.")
-                        isVolumeUpPressed = false // Mark as released.
+                        isVolumeUpPressed = false
 
                         if (!hasTriggeredAction) {
-                            // If no long-press action was triggered, perform normal volume up.
                             Log.d(TAG, "No action triggered, adjusting volume up.")
                             audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
                         }
 
                         // If both keys are now released, reset the action trigger flag.
+                        // This is the correct place to reset after any action or no action.
                         if (!isVolumeDownPressed) {
-                            Log.d(TAG, "Both keys released, resetting hasTriggeredAction.")
+                            Log.d(
+                                TAG,
+                                "Both keys released (VolUp last), resetting hasTriggeredAction."
+                            )
                             hasTriggeredAction = false
                         }
                     }
@@ -237,7 +223,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Error in handleVolumeUpKey", e)
             isVolumeUpPressed = false // Reset specific state on error.
-            // Consider if hasTriggeredAction should be reset here depending on context.
+            // If a critical error occurs, consider resetAllStates() if appropriate
             return true // Consume event.
         }
     }
@@ -246,7 +232,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         try {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
-                    if (isVolumeUpPressed) {
+                    if (isVolumeUpPressed) { // Part of a simultaneous press
                         isVolumeDownPressed = true
                         volumeDownPressTime = SystemClock.uptimeMillis()
                         Log.d(TAG, "Volume Down pressed (simultaneous press ongoing).")
@@ -294,7 +280,10 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                         }
 
                         if (!isVolumeUpPressed) {
-                            Log.d(TAG, "Both keys released, resetting hasTriggeredAction.")
+                            Log.d(
+                                TAG,
+                                "Both keys released (VolDown last), resetting hasTriggeredAction."
+                            )
                             hasTriggeredAction = false
                         }
                     }
@@ -309,19 +298,16 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun checkSimultaneousLongPress() {
-        // This function is called when one key is already held and the other is pressed.
-        // It needs to ensure both are still pressed and no other action has been triggered.
         if (!isVolumeUpPressed || !isVolumeDownPressed || hasTriggeredAction) {
             Log.d(
                 TAG,
-                "Simultaneous check skipped: VolUp=$isVolumeUpPressed, VolDown=$isVolumeDownPressed, Triggered=$hasTriggeredAction"
+                "Simultaneous check skipped: VolUpPresent=$isVolumeUpPressed, VolDownPresent=$isVolumeDownPressed, ActionTriggered=$hasTriggeredAction"
             )
             return
         }
 
         Log.d(TAG, "Checking for simultaneous long press...")
         try {
-            // Ensure press times are valid (should be set by ACTION_DOWN handlers).
             if (volumeUpPressTime == 0L || volumeDownPressTime == 0L) {
                 Log.w(TAG, "Simultaneous check aborted: press times not properly set.")
                 return
@@ -336,36 +322,36 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 "Simultaneous Params: TimeBetween=$timeBetweenPresses (Buffer=$bufferTime), Threshold=$playPauseThreshold"
             )
 
-            // Check if keys were pressed close enough in time to be considered "simultaneous".
             if (timeBetweenPresses <= bufferTime) {
-                // Monitor while both keys are held and no action has been triggered yet by this path.
+                // Both keys are pressed and within the buffer time.
+                // Now, wait for both to be held for the playPauseThreshold.
                 while (isVolumeUpPressed && isVolumeDownPressed && !hasTriggeredAction) {
+                    // We need to check duration from the *later* of the two presses,
+                    // or ensure both individual durations meet the threshold.
+                    // Simpler: check if current time minus each press time is >= threshold.
                     val upDuration = SystemClock.uptimeMillis() - volumeUpPressTime
                     val downDuration = SystemClock.uptimeMillis() - volumeDownPressTime
 
-                    // If both keys have been held long enough for the play/pause action.
                     if (upDuration >= playPauseThreshold && downDuration >= playPauseThreshold) {
                         Log.d(TAG, "Simultaneous threshold met. Triggering play/pause.")
-                        hasTriggeredAction =
-                            true // Mark that this specific action is being triggered.
-                        togglePlayPause() // This action includes haptic feedback.
-                        break // Exit loop as action is triggered.
+                        hasTriggeredAction = true // Mark that a KeyWave action is being performed.
+                        togglePlayPause()
+                        // After togglePlayPause, the 'hasTriggeredAction' will remain true
+                        // until both keys are released (handled in ACTION_UP).
+                        break
                     }
-                    delay(10) // Re-check shortly.
+                    delay(10)
                 }
             } else {
                 Log.d(
                     TAG,
-                    "Simultaneous press buffer exceeded ($timeBetweenPresses ms > $bufferTime ms). Not a play/pause candidate from this path."
+                    "Simultaneous press buffer exceeded ($timeBetweenPresses ms > $bufferTime ms). Not a play/pause."
                 )
-                // If buffer is exceeded, it's not a play/pause. The individual key long press
-                // coroutines will continue to monitor for their respective actions if applicable.
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in simultaneous press check", e)
-            // If an error occurs here, it's crucial not to leave `hasTriggeredAction` in a stuck true state
-            // if this path was about to set it. However, togglePlayPause has its own finally.
-            // This catch is for errors in fetching settings or the logic before calling togglePlayPause.
+            // If an error occurs here, reset to be safe, as state might be inconsistent.
+            // resetAllStates() // Or specific error handling.
         }
     }
 
@@ -374,7 +360,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             try {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
-                delay(50) // Brief delay between key down and up for compatibility.
+                delay(50)
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_NEXT))
                 provideHapticFeedback()
                 Log.i(TAG, "Successfully dispatched MEDIA_NEXT")
@@ -399,19 +385,17 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 Log.e(TAG, "Error dispatching MEDIA_PREVIOUS", e)
                 showError("Failed to skip to previous track")
             }
+            // hasTriggeredAction is reset when both keys are released.
         }
     }
 
     private fun togglePlayPause() {
+        // This function is called when a simultaneous long press is confirmed
+        // and hasTriggeredAction has just been set to true by the caller.
         Log.d(TAG, "Action: Toggle Play/Pause. Current hasTriggeredAction: $hasTriggeredAction")
-        // This function assumes hasTriggeredAction was just set to true by the caller (checkSimultaneousLongPress)
-        // to indicate this specific action is intended.
-        if (!hasTriggeredAction) {
-            Log.w(
-                TAG,
-                "togglePlayPause called but hasTriggeredAction was false (or reset prematurely). Aborting."
-            )
-            return // Should not happen if logic flow is correct.
+        if (!hasTriggeredAction) { // Should ideally not happen if called correctly
+            Log.w(TAG, "togglePlayPause called but hasTriggeredAction was false. Aborting.")
+            return
         }
 
         serviceScope.launch {
@@ -420,16 +404,19 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
                 delay(50)
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
-                provideHapticFeedback() // Provide feedback for this action.
+                provideHapticFeedback()
                 Log.i(TAG, "Successfully dispatched MEDIA_PLAY_PAUSE")
             } catch (e: Exception) {
                 Log.e(TAG, "Error dispatching MEDIA_PLAY_PAUSE", e)
                 showError("Failed to toggle play/pause")
+                // If dispatch fails, we might still want hasTriggeredAction to be true
+                // until keys are released, to prevent volume changes.
+                // Or, if the action is considered "failed", reset hasTriggeredAction here
+                // and allow volume changes. Current logic: it stays true until keys up.
             }
-            // CRITICAL FIX: Removed 'finally { hasTriggeredAction = false }' block from here.
-            // The 'hasTriggeredAction' flag is now correctly reset only when both volume keys
-            // are released, as handled in the ACTION_UP sections of
-            // handleVolumeUpKey and handleVolumeDownKey.
+            // CRITICAL FIX: Removed 'finally { hasTriggeredAction = false }' block.
+            // 'hasTriggeredAction' is reset when both keys are released,
+            // handled in ACTION_UP of handleVolumeUpKey/handleVolumeDownKey.
         }
     }
 
@@ -452,7 +439,6 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     }
 
     private fun showError(message: String) {
-        // Ensure Toast is shown on the main thread.
         serviceScope.launch(Dispatchers.Main.immediate) {
             try {
                 Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
@@ -466,8 +452,8 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Resetting all internal key press states.")
         isVolumeUpPressed = false
         isVolumeDownPressed = false
-        volumeUpPressTime = 0L // Reset press times.
+        volumeUpPressTime = 0L
         volumeDownPressTime = 0L
-        hasTriggeredAction = false // Reset the action trigger flag.
+        hasTriggeredAction = false
     }
 }
