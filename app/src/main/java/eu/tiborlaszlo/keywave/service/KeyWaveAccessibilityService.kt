@@ -24,6 +24,9 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     private lateinit var vibrator: Vibrator
     private lateinit var settingsManager: SettingsManager
     
+    @Volatile
+    private var isAppEnabledCache: Boolean = false
+    
     private var volumeUpPressTime by Delegates.notNull<Long>()
     private var volumeDownPressTime by Delegates.notNull<Long>()
     private var isVolumeUpPressed = false
@@ -55,6 +58,20 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 disableSelf()
                 return
             }
+            
+            // Start monitoring app enabled state
+            serviceScope.launch {
+                try {
+                    settingsManager.isAppEnabled.collect { enabled ->
+                        isAppEnabledCache = enabled
+                        Log.d(TAG, "App enabled state updated: $enabled")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error monitoring app enabled state", e)
+                    isAppEnabledCache = false
+                }
+            }
+            
             resetAllStates() // Reset states when service connects
             Log.i(TAG, "KeyWave Accessibility Service connected")
         } catch (e: Exception) {
@@ -92,23 +109,17 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 return false
             }
             
-            // Check if app is enabled
-            var isEnabled = false
-            try {
-                runBlocking {
-                    isEnabled = settingsManager.isAppEnabled.first()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error checking app enabled state", e)
-                return false
-            }
-            
-            if (!isEnabled) {
-                return false
-            }
-            
-            // Only handle events when screen is off
+            // Check if screen is on and reset states if needed
             if (powerManager.isInteractive) {
+                if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
+                    Log.d(TAG, "Screen turned on while keys were pressed, resetting states")
+                    resetAllStates()
+                }
+                return false
+            }
+            
+            // Use cached app enabled state instead of blocking call
+            if (!isAppEnabledCache) {
                 return false
             }
             
