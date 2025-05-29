@@ -32,8 +32,8 @@ class SettingsManager(private val context: Context) {
 
         const val MIN_THRESHOLD = 200L
         const val MAX_THRESHOLD = 2000L
-        const val MIN_BUFFER = 100L
-        const val MAX_BUFFER = 1000L
+        //const val MIN_BUFFER = 100L
+        //const val MAX_BUFFER = 1000L
     }
 
     val getNextTrackThreshold: Flow<Long> = context.dataStore.data
