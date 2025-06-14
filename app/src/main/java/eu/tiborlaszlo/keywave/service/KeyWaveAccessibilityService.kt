@@ -11,7 +11,6 @@ import android.content.Intent
 import android.media.AudioManager
 import android.os.PowerManager
 import android.os.SystemClock
-import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
 import android.view.KeyEvent
@@ -20,6 +19,9 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import eu.tiborlaszlo.keywave.MainActivity
 import eu.tiborlaszlo.keywave.R
+import eu.tiborlaszlo.keywave.utils.MediaAction
+import eu.tiborlaszlo.keywave.utils.NotificationListenerUtils
+import eu.tiborlaszlo.keywave.utils.VibrationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,6 +42,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     private lateinit var powerManager: PowerManager
     private lateinit var vibrator: Vibrator
     private lateinit var settingsManager: SettingsManager
+    private lateinit var vibrationManager: VibrationManager
 
     private var isAppCurrentlyEnabled = true
     private var canVibrate: Boolean = false
@@ -132,6 +135,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             powerManager = getSystemService(POWER_SERVICE) as PowerManager
             vibrator = getSystemService(Vibrator::class.java)
             settingsManager = SettingsManager(this)
+            vibrationManager = VibrationManager(this)
             canVibrate = ::vibrator.isInitialized && vibrator.hasVibrator()
             if (!canVibrate) logWarn("Vibrator not available or not initialized during onCreate.")
 
@@ -294,7 +298,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         if (event == null) {
             logDebug("onKeyEvent: event is null"); return false
         }
-        logDebug("onKeyEvent: action=${event.action}, keyCode=${event.keyCode}, AppEn=$isAppCurrentlyEnabled, ScreenInt=${if (::powerManager.isInitialized) powerManager.isInteractive else "N/A"}, TrigAct=$hasTriggeredAction")
+        logDebug("onKeyEvent: action=${event.action}, keyCode=${event.keyCode}, AppEn=$isAppCurrentlyEnabled, ScreenInt=${if (::powerManager.isInitialized) powerManager.isInteractive else "N/A"}, TrigAct=$hasTriggeredAction, MediaActive=${NotificationListenerUtils.hasActiveMediaNotification()}")
 
         try {
             if (event.action != KeyEvent.ACTION_UP && event.action != KeyEvent.ACTION_DOWN) {
@@ -305,10 +309,10 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             }
             if (!isAppCurrentlyEnabled) {
                 if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
-                    logDebug("onKeyEvent: App disabled, resetting."); resetAllStatesAndJobs()
-                }
+                    logDebug("onKeyEvent: App disabled, resetting."); resetAllStatesAndJobs()                }
                 return false
             }
+            
             if (powerManager.isInteractive) {
                 if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
                     logDebug("onKeyEvent: Screen ON, resetting."); resetAllStatesAndJobs()
@@ -316,7 +320,21 @@ class KeyWaveAccessibilityService : AccessibilityService() {
                 return false
             }
 
-            logDebug("onKeyEvent: Processing (Screen OFF, App ON)")
+            // Check if there's an active media notification
+            val hasActiveMedia = NotificationListenerUtils.hasActiveMediaNotification()
+            val activeMediaPackages = NotificationListenerUtils.getActiveMediaPackages()
+            
+            if (!hasActiveMedia) {
+                logDebug("onKeyEvent: No active media notification, allowing normal volume behavior. Active packages: $activeMediaPackages")
+                if (isVolumeUpPressed || isVolumeDownPressed || hasTriggeredAction) {
+                    logDebug("onKeyEvent: Resetting states due to no media notification"); resetAllStatesAndJobs()
+                }
+                return false
+            }
+            
+            logDebug("onKeyEvent: Media notification active from: $activeMediaPackages")
+
+            logDebug("onKeyEvent: Processing (Screen OFF, App ON, Media Active)")
             return when (event.keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> handleVolumeUpKey(event)
                 KeyEvent.KEYCODE_VOLUME_DOWN -> handleVolumeDownKey(event)
@@ -507,70 +525,80 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             logError("Err checkSimulPress", e)
         }
-    }
-
-    private fun skipToNextTrack() {
+    }    private fun skipToNextTrack() {
         logInfo("Action: SkipNext (TrigAct is now true)")
         serviceScope.launch {
             try {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
                 delay(50)
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_NEXT))
-                provideHapticFeedback()
+                provideHapticFeedback(MediaAction.NEXT_TRACK)
                 logInfo("Dispatch MEDIA_NEXT OK")
             } catch (e: Exception) {
                 logError("Err dispatch NEXT", e)
                 showError("Fail skip next")
             }
         }
-    }
-    private fun skipToPreviousTrack() {
+    }    private fun skipToPreviousTrack() {
         logInfo("Action: SkipPrev (TrigAct is now true)")
         serviceScope.launch {
             try {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
                 delay(50)
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
-                provideHapticFeedback()
+                provideHapticFeedback(MediaAction.PREVIOUS_TRACK)
                 logInfo("Dispatch MEDIA_PREVIOUS OK")
             } catch (e: Exception) {
                 logError("Err dispatch PREV", e)
                 showError("Fail skip prev")
             }
         }
-    }
-    private fun togglePlayPause() {
+    }    private fun togglePlayPause() {
         logInfo("Action: TogglePlayPause (TrigAct is now true)")
         serviceScope.launch {
             try {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
                 delay(50)
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
-                provideHapticFeedback()
+                provideHapticFeedback(MediaAction.PLAY_PAUSE)
                 logInfo("Dispatch MEDIA_PLAY_PAUSE OK")
             } catch (e: Exception) {
                 logError("Err dispatch PLAY_PAUSE", e)
                 showError("Fail play/pause")
             }
         }
-    }
-
-    private fun provideHapticFeedback() {
+    }    private fun provideHapticFeedback(action: MediaAction) {
         serviceScope.launch {
             try {
-                if (settingsManager.getHapticFeedbackEnabled.first() && canVibrate) {
-                    logDebug("Provide haptic.")
-                    vibrator.vibrate(
-                        VibrationEffect.createOneShot(
-                            50,
-                            VibrationEffect.DEFAULT_AMPLITUDE
-                        )
-                    )
-                } else if (settingsManager.getHapticFeedbackEnabled.first()) {
-                    logWarn("Haptic on, but cannot vibrate.")
+                val hapticEnabled = settingsManager.getHapticFeedbackEnabled.first()
+                if (hapticEnabled) {
+                    val vibrationMode = settingsManager.getVibrationMode.first()
+                    logDebug("Providing haptic feedback: action=$action, mode=$vibrationMode")
+                    
+                    when (vibrationMode) {
+                        "CUSTOM" -> {
+                            val customSettings = settingsManager.getCustomVibrationSettings.first()
+                            logDebug("Custom vibration settings: $customSettings")
+                            vibrationManager.provideHapticFeedback(action, vibrationMode, customSettings)
+                        }
+                        "DISTINCT" -> {
+                            val distinctSettings = settingsManager.getDistinctSettings.first()
+                            logDebug("Distinct pattern settings: $distinctSettings")
+                            vibrationManager.provideHapticFeedback(action, vibrationMode, distinctSettings = distinctSettings)
+                        }                        "ADVANCED" -> {
+                            val advancedPatterns = settingsManager.getAdvancedPatterns.first()
+                            logDebug("Advanced pattern settings: $advancedPatterns")
+                            vibrationManager.provideHapticFeedback(action, vibrationMode, advancedPatterns = advancedPatterns)
+                        }
+                        else -> {
+                            vibrationManager.provideHapticFeedback(action, vibrationMode)
+                        }
+                    }
+                } else {
+                    logDebug("Haptic feedback disabled in settings")
                 }
             } catch (e: Exception) {
-                logError("Err haptic", e)
+                logError("Err haptic feedback", e)
             }
         }
     }

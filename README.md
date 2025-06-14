@@ -15,6 +15,7 @@ Long press volume up to skip to the next track, long press volume down for previ
 - **Previous track** - Long press volume down  
 - **Play/pause** - Long press both volume keys
 - **Normal volume** - Short presses work as usual
+- **Smart activation** - Only responds when music apps are actively playing
 - **Customizable timing** - Adjust how long you need to hold the keys
 - **Haptic feedback** - Optional vibration when a command is detected
 - **Battery efficient** - Runs in background without draining your battery
@@ -22,19 +23,21 @@ Long press volume up to skip to the next track, long press volume down for previ
 
 ## How it works
 
-The app uses Android's Accessibility Service to capture volume key presses globally, then sends media control commands to whatever music app you're using. When it detects a long press, it blocks the normal volume change and sends the music command instead.
+The app uses Android's Accessibility Service to capture volume key presses globally, and a Notification Listener Service to detect when music apps are playing. When it detects a long press while media is active, it blocks the normal volume change and sends the music command instead. This ensures the app only interferes with normal volume controls when you're actually listening to music.
 
 ## Setup
 
 1. Install the app
 2. Grant Accessibility Service permission (the app will walk you through this)
-3. Enable the KeyWave service in the app settings
-4. Adjust long-press durations if needed
-5. Test it out with your music app
+3. Grant Notification Listener permission (required to detect active music apps)
+4. Enable the KeyWave service in the app settings
+5. Adjust long-press durations if needed
+6. Test it out with your music app
 
 ## Permissions
 
 - **Accessibility Service** - Required to capture volume key presses when screen is off
+- **Notification Access** - Required to detect when music apps are actively playing
 - **Foreground Service** - Keeps the service running in background
 
 ## Building

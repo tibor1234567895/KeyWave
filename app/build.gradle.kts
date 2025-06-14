@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -54,10 +55,11 @@ dependencies {
     // Media control
     implementation(libs.androidx.media)
     implementation(libs.androidx.media3.session)
-    implementation(libs.androidx.media3.common)
-
-    // Settings storage
+    implementation(libs.androidx.media3.common)    // Settings storage
     implementation(libs.androidx.datastore.preferences)
+    
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
 
     // Lifecycle components
     implementation(libs.androidx.lifecycle.service)

@@ -1,20 +1,51 @@
 <resources>
     <string name="app_name">KeyWave</string>
-    <string name="accessibility_service_description">KeyWave allows you to control music playback using volume buttons when your screen is off. Long-press volume up for next track, volume down for previous track, or both for play/pause.</string>
+    <string name="accessibility_service_description">KeyWave allows you to control music playback using volume buttons when your screen is off. Long-press volume up for next track, volume down for previous track, or both for play/pause. Only activates when music apps are playing.</string>
     <string name="service_enabled">Service Enabled</string>
     <string name="service_disabled">Service Disabled</string>
-    <string name="enable_service">Enable Service</string>
-    <string name="service_description">Control your music playback using volume buttons:\n• Long-press Volume Up = Next Track\n• Long-press Volume Down = Previous Track\n• Long-press Both = Play/Pause</string>
+    <string name="enable_service">Enable Service</string>    <string name="service_description">Control your music playback using volume buttons:\n• Long-press Volume Up = Next Track\n• Long-press Volume Down = Previous Track\n• Long-press Both = Play/Pause\n\nNow only activates when music apps are playing!</string>
+    
     <string name="accessibility_required">Accessibility Service Required</string>
     <string name="accessibility_explanation">KeyWave needs accessibility service permissions to detect volume button presses.</string>
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
-
+    
+    <string name="notification_access_required">Notification Access Required</string>
+    <string name="notification_access_explanation">KeyWave needs notification access to detect when music apps are playing. This allows the app to only respond to volume buttons when media is active.</string>
+    <string name="open_notification_settings">Open Notification Settings</string>
+    
     <string name="accessibility_required_short">Accessibility Needed</string>
+    <string name="notification_access_needed_short">Notification Access Needed</string>
     <string name="service_status_active">Active</string>
     <string name="service_status_inactive">Inactive</string>
-
+    
     <string name="settings_debug_monitoring_title">Enable Debug Monitoring</string>
     <string name="settings_debug_monitoring_description">Enables verbose logging for troubleshooting. May impact performance slightly.</string>
+
+    <string name="settings_vibration_mode_title">Vibration Mode</string>
+    <string name="settings_vibration_mode_description">Choose how vibration feedback works</string>
+      <string name="vibration_mode_off">Off</string>
+    <string name="vibration_mode_simple">Simple</string>
+    <string name="vibration_mode_distinct">Distinct per Action</string>
+    <string name="vibration_mode_gentle">Gentle</string>
+    <string name="vibration_mode_strong">Strong</string>
+    <string name="vibration_mode_custom">Custom</string>
+    <string name="vibration_mode_advanced">Advanced Custom</string>
+    
+    <string name="settings_custom_vibration_title">Custom Vibration Settings</string>
+    <string name="settings_custom_vibration_description">Set different vibration modes for each action</string>
+    
+    <string name="settings_distinct_config_title">Configure Distinct Patterns</string>
+    <string name="settings_distinct_config_description">Customize the number of pulses and intensity for each action</string>
+    
+    <string name="settings_advanced_patterns_title">Advanced Pattern Editor</string>
+    <string name="settings_advanced_patterns_description">Create completely custom vibration patterns</string>
+    
+    <string name="pulses_count">Number of Pulses</string>
+    <string name="intensity_level">Intensity Level</string>
+    
+    <string name="action_next_track">Next Track</string>
+    <string name="action_previous_track">Previous Track</string>
+    <string name="action_play_pause">Play/Pause</string>
 
     <string name="keywave_service_notification_channel_name">KeyWave Service Status</string>
     <string name="keywave_service_notification_channel_description">Notification to keep KeyWave service active</string>
