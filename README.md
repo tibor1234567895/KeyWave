@@ -17,13 +17,21 @@ Long press volume up to skip to the next track, long press volume down for previ
 - **Normal volume** - Short presses work as usual
 - **Smart activation** - Only responds when music apps are actively playing
 - **Customizable timing** - Adjust how long you need to hold the keys
-- **Haptic feedback** - Optional vibration when a command is detected
+- **Advanced haptic feedback** - Rich vibration options with multiple modes:
+  - **Simple** - Single vibration for all actions
+  - **Distinct per Action** - Configurable pulses and intensity for each action (1-5 pulses, adjustable intensity)
+  - **Gentle/Strong** - Pre-defined intensity levels
+  - **Custom** - Set different vibration modes for each individual action
+  - **Advanced Custom** - Create completely custom vibration patterns with precise timing, multiple pulses, and variable intensities
 - **Battery efficient** - Runs in background without draining your battery
 - **Works with most music apps** - Uses standard Android media controls
+- **Debug monitoring** - Optional detailed logging for troubleshooting
 
 ## How it works
 
-The app uses Android's Accessibility Service to capture volume key presses globally, and a Notification Listener Service to detect when music apps are playing. When it detects a long press while media is active, it blocks the normal volume change and sends the music command instead. This ensures the app only interferes with normal volume controls when you're actually listening to music.
+The app uses Android's Accessibility Service to capture volume key presses globally, and a Notification Listener Service to detect when music apps are playing. When it detects a long press while media is active, it blocks the normal volume change and sends the music command instead, optionally providing haptic feedback based on your configured vibration settings. This ensures the app only interferes with normal volume controls when you're actually listening to music.
+
+The advanced vibration system allows for sophisticated haptic feedback patterns - from simple single vibrations to complex multi-pulse sequences with variable timing and intensity. Patterns are stored persistently and can be customized per action for a truly personalized experience.
 
 ## Setup
 
@@ -32,7 +40,12 @@ The app uses Android's Accessibility Service to capture volume key presses globa
 3. Grant Notification Listener permission (required to detect active music apps)
 4. Enable the KeyWave service in the app settings
 5. Adjust long-press durations if needed
-6. Test it out with your music app
+6. Configure vibration feedback:
+   - Choose from multiple vibration modes (Simple, Distinct, Custom, Advanced)
+   - For Distinct mode: Set number of pulses (1-5) and intensity for each action
+   - For Custom mode: Choose different vibration styles per action
+   - For Advanced mode: Create custom patterns with precise timing and multiple pulses
+7. Test it out with your music app
 
 ## Permissions
 
