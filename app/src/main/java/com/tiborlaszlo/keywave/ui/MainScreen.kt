@@ -86,6 +86,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import kotlin.math.roundToInt
 
+@Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(
@@ -124,7 +125,6 @@ fun MainScreen(
     onFeatureToggle: (FeatureToggle) -> Unit,
     onDebugToggle: (Boolean) -> Unit = {},
 ) {
-    val context = LocalContext.current
     val extended = KeyWaveTheme.extendedColors
     val dimensions = KeyWaveTheme.dimensions
     val scope = rememberCoroutineScope()
@@ -694,11 +694,12 @@ private fun HeaderSection(
 // Button Configuration Card
 // ═══════════════════════════════════════════════════════════════
 
+@Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ButtonConfigCard(
     title: String,
-    emoji: String,
+    emoji: String, // Reserved for future use
     enabled: Boolean,
     action: ActionType,
     longPressMs: Long,
