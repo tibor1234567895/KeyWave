@@ -85,8 +85,6 @@ KeyWave is built with privacy as a core principle:
 - All settings stored locally on your device
 - Full source code available for audit
 
-See [PRIVACY.md](PRIVACY.md) for more details.
-
 ---
 
 ## Android 12+ Note
@@ -97,9 +95,7 @@ Starting with Android 12, the OS restricts background accessibility events when 
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
-
-If you find a bug or have a feature request, please open an issue. When reporting bugs, include your device model and Android version.
+Contributions are welcome. If you find a bug or have a feature request, please open an issue. When reporting bugs, include your device model and Android version.
 
 ---
 
