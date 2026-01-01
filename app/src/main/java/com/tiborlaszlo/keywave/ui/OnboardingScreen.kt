@@ -424,16 +424,9 @@ private fun AccessibilityDisclosureDialog(
                         
                         Spacer(modifier = Modifier.height(20.dp))
                         
-                        // What data is accessed
+                        // Main disclosure text
                         Text(
-                            text = "What KeyWave Accesses",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = extended.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "KeyWave uses the Accessibility Service API to detect when you press the physical volume buttons on your device. We only monitor volume key press events — no other input, screen content, or personal data is accessed.",
+                            text = "KeyWave needs to use the Accessibility Service to detect volume key presses when the screen is off. This allows the app to control media playback (skip, previous, play/pause) using volume button gestures.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = extended.textSecondary,
                             lineHeight = 22.sp,
@@ -441,24 +434,7 @@ private fun AccessibilityDisclosureDialog(
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        // Why it's needed
-                        Text(
-                            text = "Why This Is Needed",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = extended.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "This permission allows KeyWave to trigger custom media actions (such as skipping to the next track or returning to the previous track) when you hold or double-press the volume buttons, even when your screen is off.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = extended.textSecondary,
-                            lineHeight = 22.sp,
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Data sharing policy
+                        // Privacy statement - highlighted
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -478,14 +454,14 @@ private fun AccessibilityDisclosureDialog(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = "Your Privacy",
+                                        text = "Privacy",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.SemiBold,
                                         color = KeyWaveColors.Success,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "This data is not collected, stored, or shared with third parties. KeyWave has no internet permission and operates entirely offline on your device.",
+                                        text = "KeyWave does not collect, store, or share your keystrokes or any other data with third parties. The app has no internet permission and works entirely offline.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = extended.textSecondary,
                                         lineHeight = 20.sp,
@@ -603,16 +579,18 @@ private fun NotificationDisclosureDialog(
                         
                         Spacer(modifier = Modifier.height(20.dp))
                         
-                        // What data is accessed
+                        // Main disclosure text
                         Text(
-                            text = "What KeyWave Accesses",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = extended.textPrimary,
+                            text = "KeyWave needs to use the Notification Listener Service to identify which media app is currently playing. This allows the app to send playback commands (skip, previous, play/pause) to the correct app.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = extended.textSecondary,
+                            lineHeight = 22.sp,
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
                         Text(
-                            text = "KeyWave uses the Notification Listener API to read media session metadata from your notifications. This allows us to identify which music or media app is currently playing. We do not read, store, or access the content of your personal notifications (messages, emails, etc.).",
+                            text = "KeyWave only reads media session information — it does not access the content of your personal notifications (messages, emails, etc.).",
                             style = MaterialTheme.typography.bodyMedium,
                             color = extended.textSecondary,
                             lineHeight = 22.sp,
@@ -620,24 +598,7 @@ private fun NotificationDisclosureDialog(
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        // Why it's needed
-                        Text(
-                            text = "Why This Is Needed",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = extended.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "This permission allows KeyWave to detect which media player is active so it can send skip, previous, or play/pause commands to the correct app when you use volume button gestures.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = extended.textSecondary,
-                            lineHeight = 22.sp,
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Data sharing policy
+                        // Privacy statement - highlighted
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -657,14 +618,14 @@ private fun NotificationDisclosureDialog(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = "Your Privacy",
+                                        text = "Privacy",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.SemiBold,
                                         color = KeyWaveColors.Success,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "This data is not collected, stored, or shared with third parties. KeyWave has no internet permission and operates entirely offline on your device.",
+                                        text = "KeyWave does not collect, store, or share your notification data with third parties. The app has no internet permission and works entirely offline.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = extended.textSecondary,
                                         lineHeight = 20.sp,
