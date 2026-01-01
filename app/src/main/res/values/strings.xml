@@ -1,0 +1,8 @@
+<resources>
+  <string name="app_name">KeyWave</string>
+  <string name="accessibility_service_description">Listen for volume button gestures to control media.</string>
+  <string name="disclosure_accessibility">KeyWave uses Accessibility to listen for volume button presses and trigger your chosen media actions.</string>
+  <string name="disclosure_notifications">KeyWave uses notification access to detect the active media player so commands go to the correct app.</string>
+  <string name="foreground_channel_name">KeyWave Service</string>
+  <string name="foreground_notification_text">Listening for volume button gestures</string>
+</resources>
