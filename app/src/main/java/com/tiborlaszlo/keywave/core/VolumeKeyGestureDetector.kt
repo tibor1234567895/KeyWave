@@ -169,9 +169,24 @@ class VolumeKeyGestureDetector(
     }
     
     private fun handleKeyUp(keyCode: Int): Boolean {
-        // If we're not consuming events (screen state doesn't match), pass through
+        // If we're not consuming events (screen state doesn't match), clean up any state and pass through
         if (!shouldConsumeEvent()) {
             Log.w(TAG, "Key UP: ${keyCodeStr(keyCode)} - NOT consuming (screen state doesn't match activation criteria)")
+            // Clean up state in case screen state changed between DOWN and UP
+            if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+                volumeUpPressed = false
+                handler.removeCallbacks(volumeUpRunnable)
+                volumeUpActionTriggered = false
+            } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                volumeDownPressed = false
+                handler.removeCallbacks(volumeDownRunnable)
+                volumeDownActionTriggered = false
+            }
+            if (!volumeUpPressed && !volumeDownPressed) {
+                handler.removeCallbacks(comboRunnable)
+                comboTriggered = false
+                releaseWakeLock()
+            }
             return false
         }
         
