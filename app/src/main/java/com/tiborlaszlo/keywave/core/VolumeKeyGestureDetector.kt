@@ -28,6 +28,7 @@ class VolumeKeyGestureDetector(
     private val onBothLongPress: () -> Unit,
     private val onSystemInterceptionDetected: () -> Unit = {},
     private val isDebugEnabled: () -> Boolean = { false },
+    private val shouldConsumeEvent: () -> Boolean = { true },
 ) {
     companion object {
         private const val TAG = "KeyWaveGesture"
@@ -115,6 +116,12 @@ class VolumeKeyGestureDetector(
     }
     
     private fun handleKeyDown(event: KeyEvent, keyCode: Int): Boolean {
+        // Check if we should consume this event based on screen state
+        if (!shouldConsumeEvent()) {
+            Log.w(TAG, "Key DOWN: ${keyCodeStr(keyCode)} - NOT consuming (screen state doesn't match activation criteria)")
+            return false
+        }
+        
         // Ignore repeated key events (from holding the button)
         if (event.repeatCount > 0) {
             Log.w(TAG, "Consuming repeat event for ${keyCodeStr(keyCode)}")
@@ -162,6 +169,12 @@ class VolumeKeyGestureDetector(
     }
     
     private fun handleKeyUp(keyCode: Int): Boolean {
+        // If we're not consuming events (screen state doesn't match), pass through
+        if (!shouldConsumeEvent()) {
+            Log.w(TAG, "Key UP: ${keyCodeStr(keyCode)} - NOT consuming (screen state doesn't match activation criteria)")
+            return false
+        }
+        
         Log.w(TAG, "Key UP: ${keyCodeStr(keyCode)}")
         
         // Cancel missing KEY_UP detection - we got the UP event

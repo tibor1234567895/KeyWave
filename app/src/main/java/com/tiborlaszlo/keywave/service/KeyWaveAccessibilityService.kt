@@ -38,6 +38,22 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     private val isDebugEnabled: Boolean
         get() = if (::settingsManager.isInitialized) settingsManager.state.value.debugEnabled else false
 
+    private fun shouldConsumeVolumeKeyEvents(): Boolean {
+        if (!::settingsManager.isInitialized) return false
+        
+        val state = settingsManager.state.value
+        if (!state.serviceEnabled) return false
+        
+        val screenOn = deviceState.isScreenOn()
+        val screenAllowed = when (state.screenStateMode) {
+            ScreenStateMode.ANY -> true
+            ScreenStateMode.SCREEN_ON_ONLY -> screenOn
+            ScreenStateMode.SCREEN_OFF_ONLY -> !screenOn
+        }
+        
+        return screenAllowed
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         val info = serviceInfo
@@ -74,6 +90,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             onBothLongPress = { handleBothLongPress() },
             onSystemInterceptionDetected = { handleSystemInterception() },
             isDebugEnabled = { isDebugEnabled },
+            shouldConsumeEvent = { shouldConsumeVolumeKeyEvents() },
         )
         
         Log.w(TAG, "Service initialized. Debug=${isDebugEnabled}")
