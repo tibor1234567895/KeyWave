@@ -3,9 +3,6 @@ package com.tiborlaszlo.keywave.core
 import android.content.Context
 import android.media.AudioAttributes
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.os.PowerManager
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -21,6 +18,10 @@ class HapticFeedback(
         private const val TAG = "KeyWaveHaptic"
     }
 
+    private fun debugLog(message: String) {
+        if (isDebugEnabled()) Log.d(TAG, message)
+    }
+
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val manager = context.getSystemService(VibratorManager::class.java)
         manager?.defaultVibrator
@@ -30,7 +31,7 @@ class HapticFeedback(
     }
     
     init {
-        Log.w(TAG, "HapticFeedback init: vibrator=${vibrator != null}, hasVibrator=${vibrator?.hasVibrator()}")
+        debugLog("HapticFeedback init: vibrator=${vibrator != null}, hasVibrator=${vibrator?.hasVibrator()}")
     }
 
     fun perform(
@@ -40,10 +41,10 @@ class HapticFeedback(
         customPulseMs: Int,
         customGapMs: Int,
     ) {
-        Log.w(TAG, ">>> perform() called: pattern=$pattern, intensity=$intensity")
+        debugLog(">>> perform() called: pattern=$pattern, intensity=$intensity")
         
         if (pattern == HapticPattern.OFF) {
-            Log.w(TAG, "Haptic pattern is OFF - skipping")
+            debugLog("Haptic pattern is OFF - skipping")
             return
         }
         
@@ -94,7 +95,7 @@ class HapticFeedback(
                     .setUsage(VibrationAttributes.USAGE_ACCESSIBILITY)
                     .build()
                 device.vibrate(effect, attrs)
-                Log.w(TAG, ">>> Vibrated with USAGE_ACCESSIBILITY")
+                debugLog(">>> Vibrated with USAGE_ACCESSIBILITY")
             } else {
                 // For older devices, use USAGE_ASSISTANCE_ACCESSIBILITY
                 val audioAttrs = AudioAttributes.Builder()
@@ -103,7 +104,7 @@ class HapticFeedback(
                     .build()
                 @Suppress("DEPRECATION")
                 device.vibrate(effect, audioAttrs)
-                Log.w(TAG, ">>> Vibrated with USAGE_ASSISTANCE_ACCESSIBILITY")
+                debugLog(">>> Vibrated with USAGE_ASSISTANCE_ACCESSIBILITY")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Vibration error: ${e.message}", e)
@@ -111,7 +112,7 @@ class HapticFeedback(
             try {
                 @Suppress("DEPRECATION")
                 device.vibrate(effect)
-                Log.w(TAG, ">>> Fallback vibration executed")
+                debugLog(">>> Fallback vibration executed")
             } catch (e2: Exception) {
                 Log.e(TAG, "Fallback also failed: ${e2.message}")
             }

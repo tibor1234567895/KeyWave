@@ -16,12 +16,17 @@ class KeyWaveForegroundService : Service() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     val notification = buildNotification()
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      // Android 14+ requires specifying the foreground service type
       startForeground(
         NOTIFICATION_ID,
         notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
       )
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      // Android 10-13: Use a generic type since SPECIAL_USE wasn't available
+      @Suppress("DEPRECATION")
+      startForeground(NOTIFICATION_ID, notification)
     } else {
       startForeground(NOTIFICATION_ID, notification)
     }

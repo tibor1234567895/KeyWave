@@ -339,7 +339,8 @@ class SettingsRepository(private val context: Context) {
         )
       }
       results
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      android.util.Log.e("SettingsRepository", "Failed to parse custom keybinds", e)
       emptyList()
     }
   }

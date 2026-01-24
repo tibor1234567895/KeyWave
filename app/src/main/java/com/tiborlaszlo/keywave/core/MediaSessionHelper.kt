@@ -39,8 +39,8 @@ class MediaSessionHelper(
 
     return when (activationMode) {
       ActivationMode.MEDIA_PLAYING -> playing
-      ActivationMode.MEDIA_ACTIVE -> playing ?: sessions.first()
-      ActivationMode.ALWAYS -> sessions.first()
+      ActivationMode.MEDIA_ACTIVE -> playing ?: sessions.firstOrNull()
+      ActivationMode.ALWAYS -> sessions.firstOrNull()
     }
   }
 }

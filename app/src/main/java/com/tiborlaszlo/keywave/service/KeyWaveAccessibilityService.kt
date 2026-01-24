@@ -38,6 +38,26 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     private val isDebugEnabled: Boolean
         get() = if (::settingsManager.isInitialized) settingsManager.state.value.debugEnabled else false
 
+    private fun debugLog(message: String) {
+        if (isDebugEnabled) Log.d(TAG, message)
+    }
+
+    private fun shouldConsumeVolumeKeyEvents(): Boolean {
+        if (!::settingsManager.isInitialized) return false
+        
+        val state = settingsManager.state.value
+        if (!state.serviceEnabled) return false
+        
+        val screenOn = deviceState.isScreenOn()
+        val screenAllowed = when (state.screenStateMode) {
+            ScreenStateMode.ANY -> true
+            ScreenStateMode.SCREEN_ON_ONLY -> screenOn
+            ScreenStateMode.SCREEN_OFF_ONLY -> !screenOn
+        }
+        
+        return screenAllowed
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         val info = serviceInfo
@@ -45,15 +65,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         serviceInfo = info
         // ALWAYS log service connection (not gated by debug)
         Log.w(TAG, "=== KeyWave Accessibility Service CONNECTED ===")
-        
-        // Bring app back to foreground
-        try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            launchIntent?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            launchIntent?.let { startActivity(it) }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not bring app to foreground: ${e.message}")
-        }
+        // Note: Removed startActivity call - Android 10+ blocks background activity starts
 
         serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         settingsManager = SettingsManager(this, serviceScope)
@@ -64,7 +76,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             this,
             ComponentName(this, KeyWaveNotificationListener::class.java),
         )
-        actionDispatcher = ActionDispatcher(mediaHelper)
+        actionDispatcher = ActionDispatcher(this, mediaHelper) { isDebugEnabled }
         gestureDetector = VolumeKeyGestureDetector(
             context = this,
             volumeUpThresholdMs = { settingsManager.state.value.volumeUp.longPressMs },
@@ -74,9 +86,11 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             onBothLongPress = { handleBothLongPress() },
             onSystemInterceptionDetected = { handleSystemInterception() },
             isDebugEnabled = { isDebugEnabled },
+            shouldConsumeEvent = { shouldConsumeVolumeKeyEvents() },
+            isScreenOn = { deviceState.isScreenOn() },
         )
         
-        Log.w(TAG, "Service initialized. Debug=${isDebugEnabled}")
+        debugLog("Service initialized. Debug=${isDebugEnabled}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -90,21 +104,21 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
         
-        // ALWAYS log key events (not gated by debug) - this is critical for debugging
+        // Log key events when debug is enabled
         val keyName = when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> "VOL_UP"
             KeyEvent.KEYCODE_VOLUME_DOWN -> "VOL_DOWN"
             else -> "OTHER(${event.keyCode})"
         }
         val actionName = if (event.action == KeyEvent.ACTION_DOWN) "DOWN" else "UP"
-        Log.w(TAG, "onKeyEvent: $keyName $actionName repeat=${event.repeatCount}")
+        debugLog("onKeyEvent: $keyName $actionName repeat=${event.repeatCount}")
         
         val state = settingsManager.state.value
         customKeybindMatcher.onKeyEvent(event, state.customKeybinds) { keybind ->
             handleCustomKeybind(keybind)
         }
         val consumed = gestureDetector.onKeyEvent(event)
-        Log.w(TAG, "Event consumed: $consumed")
+        debugLog("Event consumed: $consumed")
         return consumed
     }
 
@@ -117,11 +131,11 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     }
 
     private fun handleLongPress(keyCode: Int) {
-        Log.w(TAG, ">>> handleLongPress called for keyCode=$keyCode")
+        debugLog(">>> handleLongPress called for keyCode=$keyCode")
         
         val state = settingsManager.state.value
         if (!state.serviceEnabled) {
-            Log.w(TAG, "Long press ignored: service disabled")
+            debugLog("Long press ignored: service disabled")
             return
         }
         val screenOn = deviceState.isScreenOn()
@@ -131,7 +145,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             ScreenStateMode.SCREEN_OFF_ONLY -> !screenOn
         }
         if (!screenAllowed) {
-            Log.w(TAG, "Long press ignored: screen state not allowed (screenOn=$screenOn, mode=${state.screenStateMode})")
+            debugLog("Long press ignored: screen state not allowed (screenOn=$screenOn, mode=${state.screenStateMode})")
             return
         }
         val (action, haptic) = when (keyCode) {
@@ -140,18 +154,18 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             else -> return
         }
         if (!haptic.enabled) {
-            Log.w(TAG, "Long press ignored: button disabled")
+            debugLog("Long press ignored: button disabled")
             return
         }
         if (!isActionEnabled(action, state)) {
-            Log.w(TAG, "Long press ignored: action $action not enabled")
+            debugLog("Long press ignored: action $action not enabled")
             return
         }
         
-        Log.w(TAG, ">>> Dispatching action: $action")
+        debugLog(">>> Dispatching action: $action")
         actionDispatcher.dispatch(action, state)
         
-        Log.w(TAG, ">>> Performing haptic: ${haptic.hapticPattern}, intensity=${haptic.hapticIntensity}")
+        debugLog(">>> Performing haptic: ${haptic.hapticPattern}, intensity=${haptic.hapticIntensity}")
         hapticFeedback.perform(
             haptic.hapticPattern,
             haptic.hapticIntensity,
@@ -162,16 +176,16 @@ class KeyWaveAccessibilityService : AccessibilityService() {
     }
 
     private fun handleBothLongPress() {
-        Log.w(TAG, ">>> handleBothLongPress called")
+        debugLog(">>> handleBothLongPress called")
         
         val state = settingsManager.state.value
         val combo = state.combo
         if (!combo.enabled) {
-            Log.w(TAG, "Combo ignored: disabled")
+            debugLog("Combo ignored: disabled")
             return
         }
         if (!state.serviceEnabled) {
-            Log.w(TAG, "Combo ignored: service disabled")
+            debugLog("Combo ignored: service disabled")
             return
         }
         val screenOn = deviceState.isScreenOn()
@@ -181,18 +195,18 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             ScreenStateMode.SCREEN_OFF_ONLY -> !screenOn
         }
         if (!screenAllowed) {
-            Log.w(TAG, "Combo ignored: screen state not allowed")
+            debugLog("Combo ignored: screen state not allowed")
             return
         }
         if (!isActionEnabled(combo.action, state)) {
-            Log.w(TAG, "Combo ignored: action ${combo.action} not enabled")
+            debugLog("Combo ignored: action ${combo.action} not enabled")
             return
         }
         
-        Log.w(TAG, ">>> Dispatching combo action: ${combo.action}")
+        debugLog(">>> Dispatching combo action: ${combo.action}")
         actionDispatcher.dispatch(combo.action, state)
         
-        Log.w(TAG, ">>> Performing combo haptic: ${combo.hapticPattern}")
+        debugLog(">>> Performing combo haptic: ${combo.hapticPattern}")
         hapticFeedback.perform(
             combo.hapticPattern,
             combo.hapticIntensity,
@@ -215,7 +229,7 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         if (!keybind.enabled) return
         if (!isActionEnabled(keybind.action, state)) return
         
-        Log.w(TAG, "Custom keybind triggered: ${keybind.name} -> ${keybind.action}")
+        debugLog("Custom keybind triggered: ${keybind.name} -> ${keybind.action}")
         actionDispatcher.dispatch(keybind.action, state)
         hapticFeedback.perform(
             keybind.hapticPattern,

@@ -28,10 +28,16 @@ class VolumeKeyGestureDetector(
     private val onBothLongPress: () -> Unit,
     private val onSystemInterceptionDetected: () -> Unit = {},
     private val isDebugEnabled: () -> Boolean = { false },
+    private val shouldConsumeEvent: () -> Boolean = { true },
+    private val isScreenOn: () -> Boolean = { true },
 ) {
     companion object {
         private const val TAG = "KeyWaveGesture"
         private const val MISSING_KEY_UP_TIMEOUT_MS = 3000L
+    }
+
+    private fun debugLog(message: String) {
+        if (isDebugEnabled()) Log.d(TAG, message)
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -54,7 +60,7 @@ class VolumeKeyGestureDetector(
 
     private val volumeUpRunnable = Runnable {
         if (!comboTriggered && volumeUpPressed && !volumeDownPressed) {
-            Log.w(TAG, ">>> Vol UP long-press threshold reached - triggering action")
+            debugLog(">>> Vol UP long-press threshold reached - triggering action")
             volumeUpActionTriggered = true
             onLongPress(KeyEvent.KEYCODE_VOLUME_UP)
         }
@@ -62,7 +68,7 @@ class VolumeKeyGestureDetector(
 
     private val volumeDownRunnable = Runnable {
         if (!comboTriggered && volumeDownPressed && !volumeUpPressed) {
-            Log.w(TAG, ">>> Vol DOWN long-press threshold reached - triggering action")
+            debugLog(">>> Vol DOWN long-press threshold reached - triggering action")
             volumeDownActionTriggered = true
             onLongPress(KeyEvent.KEYCODE_VOLUME_DOWN)
         }
@@ -70,7 +76,7 @@ class VolumeKeyGestureDetector(
 
     private val comboRunnable = Runnable {
         if (volumeUpPressed && volumeDownPressed && !comboTriggered) {
-            Log.w(TAG, ">>> Combo long-press threshold reached - triggering action")
+            debugLog(">>> Combo long-press threshold reached - triggering action")
             comboTriggered = true
             volumeUpActionTriggered = true
             volumeDownActionTriggered = true
@@ -115,13 +121,19 @@ class VolumeKeyGestureDetector(
     }
     
     private fun handleKeyDown(event: KeyEvent, keyCode: Int): Boolean {
+        // Check if we should consume this event based on screen state
+        if (!shouldConsumeEvent()) {
+            debugLog("Key DOWN: ${keyCodeStr(keyCode)} - NOT consuming (screen state doesn't match activation criteria)")
+            return false
+        }
+        
         // Ignore repeated key events (from holding the button)
         if (event.repeatCount > 0) {
-            Log.w(TAG, "Consuming repeat event for ${keyCodeStr(keyCode)}")
+            debugLog("Consuming repeat event for ${keyCodeStr(keyCode)}")
             return true
         }
         
-        Log.w(TAG, "Key DOWN: ${keyCodeStr(keyCode)} - CONSUMING to prevent volume change")
+        debugLog("Key DOWN: ${keyCodeStr(keyCode)} - CONSUMING to prevent volume change")
         
         // Acquire wakelock to keep CPU awake for long-press detection
         acquireWakeLock()
@@ -142,15 +154,15 @@ class VolumeKeyGestureDetector(
             handler.removeCallbacks(volumeUpRunnable)
             handler.removeCallbacks(volumeDownRunnable)
             handler.postDelayed(comboRunnable, comboThresholdMs())
-            Log.w(TAG, "Combo detection started, threshold: ${comboThresholdMs()}ms")
+            debugLog("Combo detection started, threshold: ${comboThresholdMs()}ms")
         } else {
             // Single key pressed
             if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
                 handler.postDelayed(volumeUpRunnable, volumeUpThresholdMs())
-                Log.w(TAG, "Vol UP detection started, threshold: ${volumeUpThresholdMs()}ms")
+                debugLog("Vol UP detection started, threshold: ${volumeUpThresholdMs()}ms")
             } else {
                 handler.postDelayed(volumeDownRunnable, volumeDownThresholdMs())
-                Log.w(TAG, "Vol DOWN detection started, threshold: ${volumeDownThresholdMs()}ms")
+                debugLog("Vol DOWN detection started, threshold: ${volumeDownThresholdMs()}ms")
             }
         }
         
@@ -162,7 +174,28 @@ class VolumeKeyGestureDetector(
     }
     
     private fun handleKeyUp(keyCode: Int): Boolean {
-        Log.w(TAG, "Key UP: ${keyCodeStr(keyCode)}")
+        // If we're not consuming events (screen state doesn't match), clean up any state and pass through
+        if (!shouldConsumeEvent()) {
+            debugLog("Key UP: ${keyCodeStr(keyCode)} - NOT consuming (screen state doesn't match activation criteria)")
+            // Clean up state in case screen state changed between DOWN and UP
+            if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+                volumeUpPressed = false
+                handler.removeCallbacks(volumeUpRunnable)
+                volumeUpActionTriggered = false
+            } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                volumeDownPressed = false
+                handler.removeCallbacks(volumeDownRunnable)
+                volumeDownActionTriggered = false
+            }
+            if (!volumeUpPressed && !volumeDownPressed) {
+                handler.removeCallbacks(comboRunnable)
+                comboTriggered = false
+                releaseWakeLock()
+            }
+            return false
+        }
+        
+        debugLog("Key UP: ${keyCodeStr(keyCode)}")
         
         // Cancel missing KEY_UP detection - we got the UP event
         handler.removeCallbacks(missingKeyUpRunnable)
@@ -173,7 +206,7 @@ class VolumeKeyGestureDetector(
             handler.removeCallbacks(volumeUpRunnable)
             if (!volumeUpActionTriggered && !comboTriggered) {
                 // Short press - adjust volume up
-                Log.w(TAG, "Vol UP short press - adjusting volume UP")
+                debugLog("Vol UP short press - adjusting volume UP")
                 adjustVolume(AudioManager.ADJUST_RAISE)
             }
             volumeUpActionTriggered = false
@@ -182,17 +215,14 @@ class VolumeKeyGestureDetector(
             handler.removeCallbacks(volumeDownRunnable)
             if (!volumeDownActionTriggered && !comboTriggered) {
                 // Short press - adjust volume down
-                Log.w(TAG, "Vol DOWN short press - adjusting volume DOWN")
+                debugLog("Vol DOWN short press - adjusting volume DOWN")
                 adjustVolume(AudioManager.ADJUST_LOWER)
             }
             volumeDownActionTriggered = false
         }
 
-        if (!volumeUpPressed || !volumeDownPressed) {
-            handler.removeCallbacks(comboRunnable)
-        }
-
         if (!volumeUpPressed && !volumeDownPressed) {
+            handler.removeCallbacks(comboRunnable)
             comboTriggered = false
             // Release wakelock when all keys are released
             releaseWakeLock()
@@ -212,7 +242,7 @@ class VolumeKeyGestureDetector(
         if (wakeLock?.isHeld == false) {
             // Acquire for max 5 seconds (safety timeout)
             wakeLock?.acquire(5000)
-            Log.w(TAG, "WakeLock acquired for gesture detection")
+            debugLog("WakeLock acquired for gesture detection")
         }
     }
     
@@ -220,7 +250,7 @@ class VolumeKeyGestureDetector(
         if (wakeLock?.isHeld == true) {
             try {
                 wakeLock?.release()
-                Log.w(TAG, "WakeLock released")
+                debugLog("WakeLock released")
             } catch (e: Exception) {
                 Log.e(TAG, "Error releasing wakelock: ${e.message}")
             }
@@ -234,7 +264,7 @@ class VolumeKeyGestureDetector(
                 direction,
                 AudioManager.FLAG_SHOW_UI
             )
-            Log.w(TAG, "Volume adjusted: ${if (direction == AudioManager.ADJUST_RAISE) "UP" else "DOWN"}")
+            debugLog("Volume adjusted: ${if (direction == AudioManager.ADJUST_RAISE) "UP" else "DOWN"}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to adjust volume", e)
         }

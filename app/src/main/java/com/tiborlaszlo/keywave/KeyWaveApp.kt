@@ -55,12 +55,10 @@ fun KeyWaveApp() {
     }
     
     // Also refresh permissions every 500ms while on onboarding (catches delayed registration)
-    if (!onboardingComplete) {
-        LaunchedEffect(Unit) {
-            while (true) {
-                kotlinx.coroutines.delay(500)
-                permissions = PermissionsChecker.check(context)
-            }
+    LaunchedEffect(onboardingComplete) {
+        while (!onboardingComplete) {
+            kotlinx.coroutines.delay(500)
+            permissions = PermissionsChecker.check(context)
         }
     }
 
