@@ -39,9 +39,19 @@ fun KeyWaveApp() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val repository = remember { SettingsRepository(context) }
     val settings by repository.settings.collectAsState(initial = DefaultSettings.state)
+    
+    // Load persisted onboarding state (defaults to false if never completed)
+    val persistedOnboardingComplete by repository.onboardingCompleted.collectAsState(initial = false)
+    var onboardingComplete by remember { mutableStateOf(false) }
+    
+    // Sync local state with persisted state once loaded
+    LaunchedEffect(persistedOnboardingComplete) {
+        if (persistedOnboardingComplete) {
+            onboardingComplete = true
+        }
+    }
 
     var permissions by remember { mutableStateOf(PermissionsChecker.check(context)) }
-    var onboardingComplete by remember { mutableStateOf(false) }
     
     // Refresh permissions on resume AND periodically while on onboarding screen
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -198,10 +208,15 @@ fun KeyWaveApp() {
                         },
                     )
                 } else {
+                    val scope = rememberCoroutineScope()
                     OnboardingScreen(
                         context = context, 
                         permissions = permissions,
-                        onContinue = { onboardingComplete = true },
+                        onContinue = { 
+                            onboardingComplete = true
+                            // Persist so it doesn't show again on next launch
+                            scope.launch { repository.setOnboardingCompleted(true) }
+                        },
                     )
                 }
             }

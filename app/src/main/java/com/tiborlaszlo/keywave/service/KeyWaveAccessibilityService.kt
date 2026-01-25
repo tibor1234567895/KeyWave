@@ -13,6 +13,7 @@ import com.tiborlaszlo.keywave.core.MediaSessionHelper
 import com.tiborlaszlo.keywave.core.SettingsManager
 import com.tiborlaszlo.keywave.core.VolumeKeyGestureDetector
 import com.tiborlaszlo.keywave.data.ActionType
+import com.tiborlaszlo.keywave.data.ActivationMode
 import com.tiborlaszlo.keywave.data.ScreenStateMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -162,6 +163,18 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             return
         }
         
+        // For media actions, check if media is available according to activation mode
+        val isMediaAction = action in listOf(
+            ActionType.NEXT,
+            ActionType.PREVIOUS,
+            ActionType.PLAY_PAUSE,
+            ActionType.STOP
+        )
+        if (isMediaAction && !actionDispatcher.isMediaAvailable(state)) {
+            debugLog("Long press ignored: activation mode ${state.activationMode} requires media, but none available")
+            return
+        }
+        
         debugLog(">>> Dispatching action: $action")
         actionDispatcher.dispatch(action, state)
         
@@ -203,6 +216,18 @@ class KeyWaveAccessibilityService : AccessibilityService() {
             return
         }
         
+        // For media actions, check if media is available according to activation mode
+        val isMediaAction = combo.action in listOf(
+            ActionType.NEXT,
+            ActionType.PREVIOUS,
+            ActionType.PLAY_PAUSE,
+            ActionType.STOP
+        )
+        if (isMediaAction && !actionDispatcher.isMediaAvailable(state)) {
+            debugLog("Combo ignored: activation mode ${state.activationMode} requires media, but none available")
+            return
+        }
+        
         debugLog(">>> Dispatching combo action: ${combo.action}")
         actionDispatcher.dispatch(combo.action, state)
         
@@ -228,6 +253,18 @@ class KeyWaveAccessibilityService : AccessibilityService() {
         if (!screenAllowed) return
         if (!keybind.enabled) return
         if (!isActionEnabled(keybind.action, state)) return
+        
+        // For media actions, check if media is available according to activation mode
+        val isMediaAction = keybind.action in listOf(
+            ActionType.NEXT,
+            ActionType.PREVIOUS,
+            ActionType.PLAY_PAUSE,
+            ActionType.STOP
+        )
+        if (isMediaAction && !actionDispatcher.isMediaAvailable(state)) {
+            debugLog("Custom keybind ignored: activation mode ${state.activationMode} requires media, but none available")
+            return
+        }
         
         debugLog("Custom keybind triggered: ${keybind.name} -> ${keybind.action}")
         actionDispatcher.dispatch(keybind.action, state)

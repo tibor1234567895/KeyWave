@@ -43,4 +43,19 @@ class MediaSessionHelper(
       ActivationMode.ALWAYS -> sessions.firstOrNull()
     }
   }
+
+  /**
+   * Checks if a media session is available for the given activation mode.
+   * This can be used to gate actions before dispatching.
+   */
+  fun isMediaAvailable(
+    activationMode: ActivationMode,
+    allowlist: Set<String>,
+    blocklist: Set<String>,
+  ): Boolean {
+    // ALWAYS mode doesn't require media to be active
+    if (activationMode == ActivationMode.ALWAYS) return true
+    
+    return getPreferredController(activationMode, allowlist, blocklist) != null
+  }
 }

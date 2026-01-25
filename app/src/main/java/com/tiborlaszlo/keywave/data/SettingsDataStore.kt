@@ -59,6 +59,7 @@ class SettingsRepository(private val context: Context) {
     val blocklist = stringSetPreferencesKey("blocklist")
     val customKeybinds = stringPreferencesKey("custom_keybinds")
     val debugEnabled = booleanPreferencesKey("debug_enabled")
+    val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
   }
 
   val settings: Flow<SettingsState> = context.settingsDataStore.data.map { prefs ->
@@ -301,6 +302,15 @@ class SettingsRepository(private val context: Context) {
 
   suspend fun setDebugEnabled(enabled: Boolean) {
     context.settingsDataStore.edit { it[Keys.debugEnabled] = enabled }
+  }
+
+  /** Flow that emits whether onboarding has been completed */
+  val onboardingCompleted: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+    prefs[Keys.onboardingCompleted] ?: false
+  }
+
+  suspend fun setOnboardingCompleted(completed: Boolean) {
+    context.settingsDataStore.edit { it[Keys.onboardingCompleted] = completed }
   }
 
   private fun parseCustomKeybinds(raw: String?): List<CustomKeybind> {

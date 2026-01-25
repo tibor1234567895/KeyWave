@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.media.session.MediaController
+import android.media.session.PlaybackState
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import com.tiborlaszlo.keywave.data.ActionType
@@ -54,23 +56,37 @@ class ActionDispatcher(
     fun dispatch(action: ActionType, settings: SettingsState) {
         debugLog("Dispatching action: $action")
         when (action) {
-            ActionType.NEXT -> sendMediaCommand(settings, KeyEvent.KEYCODE_MEDIA_NEXT) {
-                it.transportControls.skipToNext()
-            }
-            ActionType.PREVIOUS -> sendMediaCommand(settings, KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
-                it.transportControls.skipToPrevious()
-            }
-            ActionType.PLAY_PAUSE -> sendMediaCommand(settings, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) { controller ->
-                val state = controller.playbackState?.state
-                if (state == android.media.session.PlaybackState.STATE_PLAYING) {
-                    controller.transportControls.pause()
-                } else {
-                    controller.transportControls.play()
+            ActionType.NEXT -> sendSmartMediaCommand(
+                settings = settings,
+                keyCode = KeyEvent.KEYCODE_MEDIA_NEXT,
+                requiredAction = PlaybackState.ACTION_SKIP_TO_NEXT,
+                transportCommand = { it.transportControls.skipToNext() }
+            )
+            ActionType.PREVIOUS -> sendSmartMediaCommand(
+                settings = settings,
+                keyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+                requiredAction = PlaybackState.ACTION_SKIP_TO_PREVIOUS,
+                transportCommand = { it.transportControls.skipToPrevious() }
+            )
+            ActionType.PLAY_PAUSE -> sendSmartMediaCommand(
+                settings = settings,
+                keyCode = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                requiredAction = PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE,
+                transportCommand = { controller ->
+                    val state = controller.playbackState?.state
+                    if (state == PlaybackState.STATE_PLAYING) {
+                        controller.transportControls.pause()
+                    } else {
+                        controller.transportControls.play()
+                    }
                 }
-            }
-            ActionType.STOP -> sendMediaCommand(settings, KeyEvent.KEYCODE_MEDIA_STOP) {
-                it.transportControls.stop()
-            }
+            )
+            ActionType.STOP -> sendSmartMediaCommand(
+                settings = settings,
+                keyCode = KeyEvent.KEYCODE_MEDIA_STOP,
+                requiredAction = PlaybackState.ACTION_STOP,
+                transportCommand = { it.transportControls.stop() }
+            )
             ActionType.FLASHLIGHT -> toggleFlashlight()
             ActionType.ASSISTANT -> launchAssistant()
             ActionType.MUTE -> toggleMute()
@@ -82,10 +98,29 @@ class ActionDispatcher(
         }
     }
 
-    private fun sendMediaCommand(
+    /**
+     * Checks if media is available for the given activation mode.
+     * Should be called before dispatching media actions to avoid unnecessary fallbacks.
+     */
+    fun isMediaAvailable(settings: SettingsState): Boolean {
+        return mediaSessionHelper.isMediaAvailable(
+            activationMode = settings.activationMode,
+            allowlist = settings.allowlist,
+            blocklist = settings.blocklist,
+        )
+    }
+
+    /**
+     * Smart media command dispatcher with three-tier fallback:
+     * 1. If controller supports the action → use transportControls (most reliable)
+     * 2. If controller exists but doesn't advertise support → send targeted key event to controller
+     * 3. No controller at all → broadcast system-wide key event (wakes up Dozing apps)
+     */
+    private fun sendSmartMediaCommand(
         settings: SettingsState,
-        fallbackKeyCode: Int,
-        block: (MediaController) -> Unit
+        keyCode: Int,
+        requiredAction: Long,
+        transportCommand: (MediaController) -> Unit
     ) {
         val controller = mediaSessionHelper.getPreferredController(
             activationMode = settings.activationMode,
@@ -94,25 +129,73 @@ class ActionDispatcher(
         )
 
         if (controller != null) {
-            // Plan A: Send direct command to the specific app's media session
-            debugLog("Sending command to controller: ${controller.packageName}")
-            block(controller)
+            val actions = controller.playbackState?.actions ?: 0L
+            val supportsAction = (actions and requiredAction) != 0L
+            
+            if (supportsAction) {
+                // Tier 1: Controller officially supports this action - use transportControls
+                debugLog("Controller ${controller.packageName} supports action, using transportControls")
+                transportCommand(controller)
+            } else {
+                // Tier 2: Controller exists but doesn't advertise support (e.g., Brave browser)
+                // Try multiple approaches - some apps respond to different methods
+                debugLog("Controller ${controller.packageName} doesn't advertise action support")
+                
+                // First try: transportControls anyway (some apps still respond)
+                debugLog("Tier 2a: Trying transportControls anyway...")
+                try {
+                    transportCommand(controller)
+                } catch (e: Exception) {
+                    debugLog("transportControls failed: ${e.message}")
+                }
+                
+                // Second try: targeted key event to this specific controller
+                debugLog("Tier 2b: Sending targeted key event to ${controller.packageName}")
+                sendTargetedKeyEvent(controller, keyCode)
+                
+                // Third try: system-wide broadcast (some apps only respond to this)
+                debugLog("Tier 2c: Also sending system-wide key event")
+                sendSystemKeyEvent(keyCode)
+            }
         } else {
-            // Plan B: Fallback to generic media button event (wakes up Dozing apps)
-            debugLog("No active media session found, using fallback media key event")
-            sendFallbackKeyEvent(fallbackKeyCode)
+            // Tier 3: No controller - broadcast system-wide (wakes up Dozing apps)
+            debugLog("No active media session found, using system-wide fallback key event")
+            sendSystemKeyEvent(keyCode)
         }
     }
 
-    private fun sendFallbackKeyEvent(keyCode: Int) {
+    /**
+     * Sends a key event directly to a specific media controller.
+     * This is more reliable than transportControls for apps that don't properly
+     * advertise their supported actions (like Brave browser).
+     */
+    private fun sendTargetedKeyEvent(controller: MediaController, keyCode: Int) {
+        try {
+            val eventTime = SystemClock.uptimeMillis()
+            val downEvent = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0)
+            val upEvent = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0)
+            controller.dispatchMediaButtonEvent(downEvent)
+            controller.dispatchMediaButtonEvent(upEvent)
+            debugLog("Dispatched targeted key event $keyCode to ${controller.packageName}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to dispatch targeted key event, falling back to system", e)
+            sendSystemKeyEvent(keyCode)
+        }
+    }
+
+    /**
+     * Broadcasts a media key event system-wide via AudioManager.
+     * Used when no specific controller is available.
+     */
+    private fun sendSystemKeyEvent(keyCode: Int) {
         try {
             val downEvent = KeyEvent(KeyEvent.ACTION_DOWN, keyCode)
             val upEvent = KeyEvent(KeyEvent.ACTION_UP, keyCode)
             audioManager.dispatchMediaKeyEvent(downEvent)
             audioManager.dispatchMediaKeyEvent(upEvent)
-            debugLog("Dispatched fallback media key event: $keyCode")
+            debugLog("Dispatched system-wide key event: $keyCode")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to dispatch fallback key event", e)
+            Log.e(TAG, "Failed to dispatch system key event", e)
         }
     }
 
